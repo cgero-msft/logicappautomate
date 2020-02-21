@@ -1,0 +1,142 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "actions": {
+            "For_each": {
+                "actions": {
+                    "Condition": {
+                        "actions": {
+                            "Create_item": {
+                                "inputs": {
+                                    "body": {
+                                        "Title": "@items('For_each')?['Name']",
+                                        "uri": "https://logicappdemoceg.blob.core.windows.net@{items('For_each')?['Path']}"
+                                    },
+                                    "host": {
+                                        "connection": {
+                                            "name": "@parameters('$connections')['sharepointonline']['connectionId']"
+                                        }
+                                    },
+                                    "method": "post",
+                                    "path": "/datasets/@{encodeURIComponent(encodeURIComponent('https://microsoft.sharepoint.com/teams/logicappdemoceg'))}/tables/@{encodeURIComponent(encodeURIComponent('5be16d94-1799-467d-84fe-f3c5c270401b'))}/items"
+                                },
+                                "runAfter": {
+                                    "Tier_blob": [
+                                        "Succeeded"
+                                    ]
+                                },
+                                "type": "ApiConnection"
+                            },
+                            "Tier_blob": {
+                                "description": "If blob is older than the defined value, tier it to Cool or Archive tier",
+                                "inputs": {
+                                    "host": {
+                                        "connection": {
+                                            "name": "@parameters('$connections')['azureblob']['connectionId']"
+                                        }
+                                    },
+                                    "method": "post",
+                                    "path": "/datasets/default/SetBlobTierByPath",
+                                    "queries": {
+                                        "newTier": "Archive",
+                                        "path": "@items('For_each')?['Path']"
+                                    }
+                                },
+                                "runAfter": {},
+                                "type": "ApiConnection"
+                            }
+                        },
+                        "description": "Check LastModified timestamp and whether older than the tier age variable",
+                        "expression": "@less(ticks(items('For_each')?['LastModified']), ticks(addDays(utcnow(), variables('TierAgeInDays'))))",
+                        "runAfter": {},
+                        "type": "If"
+                    }
+                },
+                "description": "Scan all blobs in this folder",
+                "foreach": "@body('List_blobs')?['value']",
+                "runAfter": {
+                    "List_blobs": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "Foreach"
+            },
+            "List_blobs": {
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['azureblob']['connectionId']"
+                        }
+                    },
+                    "method": "get",
+                    "path": "/datasets/default/foldersV2/@{encodeURIComponent(encodeURIComponent('JTJmZG9jdW1lbnRz'))}",
+                    "queries": {
+                        "useFlatListing": true
+                    }
+                },
+                "metadata": {
+                    "JTJmZG9jdW1lbnRz": "/documents",
+                    "JTJmaG90": "/hot"
+                },
+                "runAfter": {
+                    "Set_tier_age_variable_": [
+                        "Succeeded"
+                    ]
+                },
+                "runtimeConfiguration": {
+                    "paginationPolicy": {
+                        "minimumItemCount": 5000
+                    }
+                },
+                "type": "ApiConnection"
+            },
+            "Set_tier_age_variable_": {
+                "description": "A variable to configure the auto tier age in days. Configured in negative number. Default is -180 (180 days old).",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "TierAgeInDays",
+                            "type": "Integer",
+                            "value": 0
+                        }
+                    ]
+                },
+                "runAfter": {},
+                "type": "InitializeVariable"
+            }
+        },
+        "contentVersion": "1.0.0.0",
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "defaultValue": {},
+                "type": "Object"
+            }
+        },
+        "triggers": {
+            "Recurrence": {
+                "recurrence": {
+                    "frequency": "Day",
+                    "interval": 1
+                },
+                "type": "Recurrence"
+            }
+        }
+    },
+    "parameters": {
+        "$connections": {
+            "value": {
+                "azureblob": {
+                    "connectionId": "/subscriptions/1bc39bbd-4f6a-448a-878b-8be2190258f1/resourceGroups/logicAppDemo/providers/Microsoft.Web/connections/azureblob",
+                    "connectionName": "azureblob",
+                    "id": "/subscriptions/1bc39bbd-4f6a-448a-878b-8be2190258f1/providers/Microsoft.Web/locations/eastus/managedApis/azureblob"
+                },
+                "sharepointonline": {
+                    "connectionId": "/subscriptions/1bc39bbd-4f6a-448a-878b-8be2190258f1/resourceGroups/logicAppDemo/providers/Microsoft.Web/connections/sharepointonline",
+                    "connectionName": "sharepointonline",
+                    "id": "/subscriptions/1bc39bbd-4f6a-448a-878b-8be2190258f1/providers/Microsoft.Web/locations/eastus/managedApis/sharepointonline"
+                }
+            }
+        }
+    }
+}
